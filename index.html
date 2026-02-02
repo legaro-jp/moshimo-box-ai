@@ -18,6 +18,7 @@
             font-family: 'Noto Sans JP', sans-serif;
             background-color: #05070a;
             color: #f1f5f9;
+            overflow-x: hidden;
         }
         .animate-spin-slow {
             animation: spin 30s linear infinite;
@@ -46,17 +47,30 @@
     <div id="root"></div>
 
     <script type="text/babel">
-        const { useState, useEffect } = React;
+        const { useState, useEffect, useRef } = React;
         
-        // --- Lucide Icon Component Helper ---
-        const Icon = ({ name, size = 24, className = "", fill = "none" }) => {
+        // --- Lucide Icon Component Helper (FIXED for removeChild error) ---
+        const Icon = ({ name, size = 24, className = "" }) => {
+            const containerRef = useRef(null);
+
             useEffect(() => {
-                lucide.createIcons();
-            }, [name]);
-            return <i data-lucide={name} style={{ width: size, height: size }} className={className}></i>;
+                // lucide.createIcons() replaces elements, which confuses React's reconciliation.
+                // By using innerHTML inside a ref-managed span, we keep React's DOM management separate from Lucide's.
+                if (window.lucide && containerRef.current) {
+                    containerRef.current.innerHTML = `<i data-lucide="${name}" style="width: ${size}px; height: ${size}px" class="${className}"></i>`;
+                    window.lucide.createIcons({
+                        attrs: {
+                            'stroke-width': 2,
+                        },
+                        nameAttr: 'data-lucide'
+                    });
+                }
+            }, [name, size, className]);
+
+            return <span ref={containerRef} className="inline-flex items-center justify-center"></span>;
         };
 
-        const apiKey = ""; // Runtime provides the key
+        const apiKey = ""; // GitHub Pagesで使用する場合はここにAPIキーを入力してください
 
         const App = () => {
             const [input, setInput] = useState("");
@@ -104,9 +118,11 @@
                         if (!response.ok) throw new Error("Image Generation Failed");
 
                         const result = await response.json();
-                        const base64 = result.predictions[0].bytesBase64Encoded;
+                        const base64 = result.predictions?.[0]?.bytesBase64Encoded;
                         
-                        setImages(prev => ({ ...prev, [id]: `data:image/png;base64,${base64}` }));
+                        if (base64) {
+                            setImages(prev => ({ ...prev, [id]: `data:image/png;base64,${base64}` }));
+                        }
                         setGeneratingImages(prev => ({ ...prev, [id]: false }));
                         return;
                     } catch (err) {
@@ -123,40 +139,47 @@
                 setImages({});
                 setWorldData(null);
 
-                const systemPrompt = `
-                  あなたは「もしもボックスAI」です。歴史の分岐点から生まれる並行世界の2026年をシミュレートします。
-                  
-                  出力は以下のJSON形式で、日本語で回答してください：
-                  {
-                    "realityDeviation": number (0-100),
-                    "worldSummary": "この世界の状態の短い要約",
-                    "categories": {
-                      "politics": { "content": "内容", "imagePrompt": "English prompt for image generation" },
-                      "economy": { "content": "内容", "imagePrompt": "English prompt for image generation" },
-                      "medical": { "content": "内容", "imagePrompt": "English prompt for image generation" },
-                      "education": { "content": "内容", "imagePrompt": "English prompt for image generation" },
-                      "lifestyle": { "content": "内容", "imagePrompt": "English prompt for image generation" },
-                      "energy": { "content": "内容", "imagePrompt": "English prompt for image generation" },
-                      "sports": { "content": "内容", "imagePrompt": "English prompt for image generation" },
-                      "music": { "content": "内容", "imagePrompt": "English prompt for image generation" },
-                      "romance": { "content": "内容", "imagePrompt": "English prompt for image generation" }
-                    },
-                    "topics": [
-                      { "title": "トピック名", "detail": "詳細文（300文字程度）", "imagePrompt": "English prompt for image generation" },
-                      { "title": "トピック名", "detail": "詳細文（300文字程度）", "imagePrompt": "English prompt for image generation" },
-                      { "title": "トピック名", "detail": "詳細文（300文字程度）", "imagePrompt": "English prompt for image generation" }
-                    ]
-                  }
-
-                  ルール：
-                  - 9つのカテゴリすべてに対して、具体的でリアリティのあるシミュレーションを行ってください。
-                  - トピックスは2026年の出来事として具体的かつ物語的に記述してください。
-                `;
+                const systemPrompt = `あなたは「もしもボックスAI」です。歴史の分岐点から生まれる並行世界の2026年をシミュレートします。
+必ず指定されたJSON形式で回答してください。`;
 
                 const payload = {
                     contents: [{ parts: [{ text: `「もしも、${userPrompt}」という設定で、2026年の並行世界を生成して。` }] }],
                     systemInstruction: { parts: [{ text: systemPrompt }] },
-                    generationConfig: { responseMimeType: "application/json" }
+                    generationConfig: { 
+                        responseMimeType: "application/json",
+                        responseSchema: {
+                            type: "OBJECT",
+                            properties: {
+                                realityDeviation: { type: "NUMBER" },
+                                worldSummary: { type: "STRING" },
+                                categories: {
+                                    type: "OBJECT",
+                                    properties: {
+                                        politics: { type: "OBJECT", properties: { content: { type: "STRING" }, imagePrompt: { type: "STRING" } } },
+                                        economy: { type: "OBJECT", properties: { content: { type: "STRING" }, imagePrompt: { type: "STRING" } } },
+                                        medical: { type: "OBJECT", properties: { content: { type: "STRING" }, imagePrompt: { type: "STRING" } } },
+                                        education: { type: "OBJECT", properties: { content: { type: "STRING" }, imagePrompt: { type: "STRING" } } },
+                                        lifestyle: { type: "OBJECT", properties: { content: { type: "STRING" }, imagePrompt: { type: "STRING" } } },
+                                        energy: { type: "OBJECT", properties: { content: { type: "STRING" }, imagePrompt: { type: "STRING" } } },
+                                        sports: { type: "OBJECT", properties: { content: { type: "STRING" }, imagePrompt: { type: "STRING" } } },
+                                        music: { type: "OBJECT", properties: { content: { type: "STRING" }, imagePrompt: { type: "STRING" } } },
+                                        romance: { type: "OBJECT", properties: { content: { type: "STRING" }, imagePrompt: { type: "STRING" } } }
+                                    }
+                                },
+                                topics: {
+                                    type: "ARRAY",
+                                    items: {
+                                        type: "OBJECT",
+                                        properties: {
+                                            title: { type: "STRING" },
+                                            detail: { type: "STRING" },
+                                            imagePrompt: { type: "STRING" }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
                 };
 
                 let retries = 0;
@@ -170,26 +193,38 @@
                             body: JSON.stringify(payload)
                         });
 
-                        if (!response.ok) throw new Error("API Request Failed");
+                        if (!response.ok) throw new Error(`API Request Failed with status ${response.status}`);
 
                         const result = await response.json();
-                        const data = JSON.parse(result.candidates[0].content.parts[0].text);
+                        const rawText = result.candidates?.[0]?.content?.parts?.[0]?.text;
+                        
+                        if (!rawText) throw new Error("No content received from AI");
+
+                        const jsonMatch = rawText.match(/\{[\s\S]*\}/);
+                        if (!jsonMatch) throw new Error("JSON structure not found in AI response");
+                        
+                        const data = JSON.parse(jsonMatch[0]);
                         
                         setWorldData(data);
                         setLoading(false);
 
                         Object.keys(data.categories).forEach(catId => {
-                            generateImage(catId, data.categories[catId].imagePrompt);
+                            if (data.categories[catId]?.imagePrompt) {
+                                generateImage(catId, data.categories[catId].imagePrompt);
+                            }
                         });
                         data.topics.forEach((topic, idx) => {
-                            generateImage(`topic_${idx}`, topic.imagePrompt);
+                            if (topic.imagePrompt) {
+                                generateImage(`topic_${idx}`, topic.imagePrompt);
+                            }
                         });
 
                         return;
                     } catch (err) {
                         retries++;
+                        console.error("Attempt " + retries + " error:", err);
                         if (retries === maxRetries) {
-                            setError("量子場が不安定で接続できませんでした。再試行してください。");
+                            setError(`時空の観測に失敗しました。量子場が不安定です。\nエラー詳細: ${err.message}`);
                             setLoading(false);
                         } else {
                             await new Promise(res => setTimeout(res, Math.pow(2, retries) * 1000));
@@ -200,7 +235,7 @@
 
             const handleSumbit = (e) => {
                 e.preventDefault();
-                if (!input.trim()) return;
+                if (!input.trim() || loading) return;
                 generateWorld(input);
             };
 
@@ -211,8 +246,7 @@
             );
 
             return (
-                <div className="min-h-screen text-slate-100 flex flex-col overflow-x-hidden">
-                    {/* Dynamic Background */}
+                <div className="min-h-screen text-slate-100 flex flex-col">
                     <div className="fixed inset-0 pointer-events-none -z-10 overflow-hidden">
                         <div className="absolute top-[-5%] left-[-10%] w-[50%] h-[50%] bg-cyan-900/10 blur-[120px] rounded-full"></div>
                         <div className="absolute bottom-[-5%] right-[-10%] w-[50%] h-[50%] bg-blue-900/10 blur-[120px] rounded-full"></div>
@@ -220,14 +254,14 @@
 
                     <header className="border-b border-white/5 bg-slate-950/80 backdrop-blur-3xl sticky top-0 z-50 flex-shrink-0">
                         <div className="max-w-6xl mx-auto px-6 py-3 flex justify-between items-center">
-                            <div className="flex items-center gap-3 group cursor-pointer" onClick={() => { setWorldData(null); setInput(""); }}>
+                            <div className="flex items-center gap-3 group cursor-pointer" onClick={() => { setWorldData(null); setInput(""); setError(null); setLoading(false); }}>
                                 <div className="bg-cyan-600 p-1.5 rounded-lg shadow-[0_0_15px_rgba(6,182,212,0.4)] transition-transform group-hover:scale-110">
                                     <Icon name="zap" size={18} className="text-white" />
                                 </div>
                                 <h1 className="text-lg font-black tracking-tight">もしもボックス<span className="text-cyan-500">AI</span></h1>
                             </div>
                             <div className="hidden md:block text-[9px] font-mono text-slate-500 uppercase tracking-[0.2em] bg-white/5 px-3 py-1 rounded-full border border-white/5">
-                                Temporal Reality Engine v3.7
+                                Temporal Reality Engine v3.8
                             </div>
                         </div>
                     </header>
@@ -257,7 +291,8 @@
                                     />
                                     <button 
                                         type="submit"
-                                        className="absolute right-2.5 top-2.5 bottom-2.5 bg-cyan-600 hover:bg-cyan-500 text-white px-8 rounded-2xl transition-all flex items-center justify-center shadow-lg active:scale-95 font-black text-base"
+                                        disabled={loading}
+                                        className="absolute right-2.5 top-2.5 bottom-2.5 bg-cyan-600 hover:bg-cyan-500 text-white px-8 rounded-2xl transition-all flex items-center justify-center shadow-lg active:scale-95 font-black text-base disabled:opacity-50"
                                     >
                                         観測開始 <Icon name="send" size={18} className="ml-2" />
                                     </button>
@@ -284,8 +319,8 @@
                                         <Icon name="cpu" size={48} className="text-cyan-500 animate-pulse" />
                                     </div>
                                 </div>
-                                <h3 className="text-2xl font-black text-white mb-2">時空の再構成中</h3>
-                                <p className="text-slate-500 font-mono text-xs tracking-[0.4em] uppercase text-center">Simulating Parallel Realities</p>
+                                <h3 className="text-2xl font-black text-white mb-2 tracking-widest text-center">時空の再構成中</h3>
+                                <p className="text-slate-500 font-mono text-xs tracking-[0.4em] uppercase text-center">Calculating Reality Vectors...</p>
                             </div>
                         ) : (
                             <div className="animate-in fade-in duration-1000 pb-20">
@@ -295,12 +330,12 @@
                                    </div>
                                    <div className="flex-shrink-0 text-center md:text-left relative z-10">
                                       <div className="text-sm font-black text-cyan-500 uppercase tracking-[0.3em] mb-2">Reality Deviation</div>
-                                      <div className="text-7xl font-black text-white font-mono leading-none">{worldData.realityDeviation}<span className="text-3xl ml-1">%</span></div>
+                                      <div className="text-7xl font-black text-white font-mono leading-none">{worldData.realityDeviation}<span className="text-4xl ml-1">%</span></div>
                                    </div>
                                    <div className="h-px md:h-24 w-full md:w-px bg-white/10"></div>
                                    <div className="flex-1 relative z-10">
-                                      <h3 className="text-xs font-bold text-slate-500 uppercase tracking-[0.3em] mb-4 flex items-center gap-2">
-                                        <Icon name="info" size={16} className="text-cyan-600" /> 2026年 シミュレーション概況
+                                      <h3 className="text-sm font-bold text-slate-500 uppercase tracking-[0.3em] mb-4 flex items-center gap-3">
+                                        <Icon name="info" size={16} className="text-cyan-600" /> シミュレーション報告: 2026年
                                       </h3>
                                       <p className="text-2xl md:text-3xl font-bold leading-tight text-slate-100">
                                         {worldData.worldSummary}
@@ -325,7 +360,7 @@
                                           <span className="font-black text-lg text-white tracking-tight">{cat.label}</span>
                                         </div>
                                         <p className="text-lg text-slate-300 leading-relaxed font-medium">
-                                          {worldData.categories[cat.id]?.content || "データを取得中..."}
+                                          {worldData.categories?.[cat.id]?.content || "データを取得できませんでした。"}
                                         </p>
                                       </div>
                                     </div>
@@ -338,7 +373,7 @@
                                 </div>
 
                                 <div className="space-y-12 mb-20">
-                                  {worldData.topics.map((topic, idx) => (
+                                  {worldData.topics?.map((topic, idx) => (
                                     <div key={idx} className="bg-slate-900/20 border border-white/5 rounded-[3.5rem] p-6 md:p-10 flex flex-col lg:flex-row gap-10 items-start group overflow-hidden relative shadow-2xl">
                                       <div className="w-full lg:w-[360px] aspect-square overflow-hidden rounded-[2.5rem] shadow-2xl flex-shrink-0">
                                         {images[`topic_${idx}`] ? (
@@ -362,7 +397,7 @@
                                 </div>
                                 
                                 <button 
-                                  onClick={() => { setWorldData(null); setInput(""); setImages({}); }}
+                                  onClick={() => { setWorldData(null); setInput(""); setImages({}); setError(null); setLoading(false); }}
                                   className="w-full py-10 border-4 border-dashed border-white/10 rounded-[3rem] text-slate-500 font-black text-lg uppercase tracking-[0.3em] hover:text-cyan-400 hover:border-cyan-500/50 hover:bg-cyan-500/5 transition-all flex items-center justify-center gap-4 group"
                                 >
                                   <Icon name="refresh-cw" size={24} className="group-hover:rotate-180 transition-transform duration-1000 mr-4" /> 新しい「もしも」を観測
@@ -371,9 +406,18 @@
                         )}
 
                         {error && (
-                            <div className="mt-8 p-6 bg-red-500/5 border border-red-500/20 rounded-[2rem] text-red-400 flex items-center gap-5 shadow-2xl">
-                                <Icon name="alert-triangle" size={28} />
-                                <div className="text-lg font-bold">{error}</div>
+                            <div className="mt-8 p-6 bg-red-500/5 border border-red-500/20 rounded-[2rem] text-red-400 flex flex-col gap-4 shadow-2xl">
+                                <div className="flex items-center gap-5">
+                                    <Icon name="alert-triangle" size={28} />
+                                    <div className="text-lg font-bold">観測エラー</div>
+                                </div>
+                                <div className="whitespace-pre-wrap font-mono text-sm opacity-80">{error}</div>
+                                <button 
+                                    onClick={() => { setWorldData(null); setInput(""); setImages({}); setError(null); setLoading(false); }}
+                                    className="bg-red-500/20 hover:bg-red-500/40 text-red-400 px-6 py-2 rounded-xl transition-colors font-bold self-start"
+                                >
+                                    トップへ戻る
+                                </button>
                             </div>
                         )}
                     </main>
