@@ -66,6 +66,12 @@
         .text-pretty {
             text-wrap: pretty;
         }
+
+        /* モバイルでの入力欄パディング調整 */
+        .input-focus-ring:focus {
+            border-color: var(--accent-cyan);
+            box-shadow: 0 0 0 2px rgba(6, 182, 212, 0.2);
+        }
     </style>
 </head>
 <body>
@@ -74,8 +80,8 @@
     <script type="text/babel">
         const { useState, useEffect, useRef } = React;
 
-        // --- 設定 ---
-        const ENV_API_KEY = ""; 
+        // --- 設定：ここにGoogle AI Studioから取得したAPIキーを入力してください ---
+        const apiKey = "AIzaSyCIr1MuqScYrOfbZOpO3dRVEsroiwvTRYo"; 
 
         // --- アイコンコンポーネント ---
         const Icon = ({ name, size = 24, className = "" }) => {
@@ -94,11 +100,6 @@
             const [loading, setLoading] = useState(false);
             const [worldData, setWorldData] = useState(null);
             const [error, setError] = useState(null);
-            const [showSettings, setShowSettings] = useState(false);
-            const [storedKey, setStoredKey] = useState(localStorage.getItem('moshimo_api_key') || "");
-            const [tempKey, setTempKey] = useState(localStorage.getItem('moshimo_api_key') || "");
-
-            const activeKey = ENV_API_KEY || storedKey;
 
             const categories = [
                 { id: 'politics', label: '政治', icon: 'gavel', color: 'from-blue-500 to-indigo-600' },
@@ -121,8 +122,10 @@
 
             const handleGenerate = async (e) => {
                 if (e) e.preventDefault();
-                if (!input.trim() || !activeKey) {
-                    if (!activeKey) setShowSettings(true);
+                if (!input.trim()) return;
+
+                if (!apiKey) {
+                    setError("APIキーがコード内に設定されていません。index.htmlの'const apiKey'変数に有効なキーを入力してください。");
                     return;
                 }
 
@@ -150,12 +153,11 @@
                 };
 
                 try {
-                    // GitHub等で403が出る場合、このモデル名がAPIキーの権限外である可能性が高いです
-                    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${activeKey}`, {
+                    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
-                            contents: [{ parts: [{ text: `「もしも、${input}」という設定で2026年の並行世界を詳細にシミュレートしてください。リアリティのあるハルシネーションを構築してください。` }] }],
+                            contents: [{ parts: [{ text: `「もしも、${input}」という設定で2026年の並行世界を詳細にシミュレートしてください。リアリティのある世界観を構築してください。` }] }],
                             systemInstruction: { parts: [{ text: "歴史シミュレーター「もしもボックスAI」です。日本語で9つのカテゴリと3つの歴史的トピックスを生成してください。トピックスの詳細は200文字程度で記述してください。" }] },
                             generationConfig: { responseMimeType: "application/json", responseSchema: schema }
                         })
@@ -174,9 +176,9 @@
                 } catch (e) {
                     let friendlyError = e.message;
                     if (e.message.includes("API key not valid")) {
-                        friendlyError = "APIキーが無効です。設定から正しいキーを入力してください。";
-                    } else if (res && res.status === 403) {
-                        friendlyError = `接続失敗: 403 (権限エラー)。APIキーがこのモデル「gemini-2.5-flash-preview」へのアクセスを許可されていないか、地域制限の可能性があります。`;
+                        friendlyError = "APIキーが無効です。有効なGemini APIキーを設定してください。";
+                    } else if (e.message.includes("403")) {
+                        friendlyError = "接続失敗: 403 (権限エラー)。APIキーがこのモデル「gemini-2.5-flash-preview」へのアクセスを許可されていないか、地域制限の可能性があります。";
                     }
                     setError(friendlyError);
                     setLoading(false);
@@ -190,97 +192,97 @@
                         <div className="absolute bottom-[-5%] right-[-10%] w-[50%] h-[50%] bg-blue-900/10 blur-[100px] rounded-full animate-pulse"></div>
                     </div>
 
-                    <header className="border-b border-white/5 bg-slate-950/80 backdrop-blur-3xl sticky top-0 z-50 px-6 py-3 flex justify-between items-center h-[64px]">
-                        <div className="flex items-center gap-3 cursor-pointer group" onClick={() => { setWorldData(null); setInput(""); setError(null); }}>
+                    <header className="border-b border-white/5 bg-slate-950/80 backdrop-blur-3xl sticky top-0 z-50 px-4 md:px-6 py-3 flex justify-between items-center h-[64px]">
+                        <div className="flex items-center gap-2 md:gap-3 cursor-pointer group" onClick={() => { setWorldData(null); setInput(""); setError(null); }}>
                             <div className="bg-cyan-600 p-1.5 rounded-lg shadow-lg group-hover:scale-110 transition-transform">
-                                <Icon name="zap" size={18} className="text-white fill-white" />
+                                <Icon name="zap" size={16} className="text-white fill-white md:w-[18px] md:h-[18px]" />
                             </div>
-                            <h1 className="text-xl font-black tracking-tighter">もしもボックス<span className="text-cyan-500 font-sans">AI</span></h1>
+                            <h1 className="text-lg md:text-xl font-black tracking-tighter">もしもボックス<span className="text-cyan-500 font-sans">AI</span></h1>
                         </div>
                         <div className="flex items-center gap-4">
-                            <span className="hidden md:block text-[9px] font-mono text-slate-500 uppercase tracking-[0.3em]">Temporal Displacement Unit v4.4</span>
-                            <button onClick={() => setShowSettings(true)} className="text-slate-400 hover:text-white p-2 transition-colors">
-                                <Icon name="settings" size={20} />
-                            </button>
+                            <span className="hidden sm:block text-[9px] font-mono text-slate-500 uppercase tracking-[0.3em]">Temporal Displacement Unit v4.5</span>
                         </div>
                     </header>
 
-                    <main className={`max-w-4xl mx-auto px-6 w-full flex-grow flex flex-col ${!worldData && !loading ? 'justify-center h-[calc(100vh-64px)] overflow-hidden' : 'py-12'}`}>
+                    <main className={`max-w-4xl mx-auto px-4 md:px-6 w-full flex-grow flex flex-col ${!worldData && !loading ? 'justify-center min-h-[calc(100vh-64px)]' : 'py-8 md:py-12'}`}>
                         
                         {!worldData && !loading ? (
-                            <div className="fade-in w-full flex flex-col items-center">
-                                <div className="mb-6 p-5 bg-cyan-500/5 rounded-full border border-cyan-500/10 shadow-2xl">
-                                    <Icon name="globe" size={56} className="text-cyan-500 animate-spin-slow" />
+                            <div className="fade-in w-full flex flex-col items-center py-8">
+                                <div className="mb-4 md:mb-6 p-4 md:p-5 bg-cyan-500/5 rounded-full border border-cyan-500/10 shadow-2xl">
+                                    <Icon name="globe" size={48} className="text-cyan-500 animate-spin-slow md:w-[56px] md:h-[56px]" />
                                 </div>
-                                <h2 className="text-4xl md:text-5xl font-black mb-4 tracking-tight text-center leading-tight">別の世界線を観測する</h2>
-                                <p className="text-slate-400 mb-10 text-base md:text-lg text-center leading-relaxed max-w-xl">
+                                <h2 className="text-3xl md:text-5xl font-black mb-3 md:mb-4 tracking-tight text-center leading-tight">別の世界線を観測する</h2>
+                                <p className="text-slate-400 mb-8 md:mb-10 text-sm md:text-lg text-center leading-relaxed max-w-xl">
                                     あなたの「もしも」が分岐させた、もう一つの2026年。<br className="hidden md:block"/>
                                     その詳細な社会状況を瞬時にシミュレートします。
                                 </p>
                                 
                                 <form onSubmit={handleGenerate} className="relative w-full max-w-2xl mb-8 group">
-                                    <div className="absolute -inset-1 bg-gradient-to-r from-cyan-600 to-blue-600 rounded-[2rem] blur opacity-15 group-hover:opacity-30 transition duration-700"></div>
+                                    <div className="absolute -inset-1 bg-gradient-to-r from-cyan-600 to-blue-600 rounded-[1.5rem] md:rounded-[2rem] blur opacity-15 group-hover:opacity-30 transition duration-700"></div>
                                     <input 
                                         type="text" 
                                         value={input} 
                                         onChange={(e) => setInput(e.target.value)}
                                         placeholder="もしも、○○だったら？"
-                                        className="relative w-full bg-slate-900 border border-white/10 rounded-[2rem] px-8 py-6 text-xl focus:outline-none focus:border-cyan-500 transition-all shadow-xl text-white"
+                                        className="relative w-full bg-slate-900 border border-white/10 rounded-[1.5rem] md:rounded-[2rem] pl-6 pr-32 md:pl-8 md:pr-40 py-5 md:py-6 text-base md:text-xl focus:outline-none focus:border-cyan-500 transition-all shadow-xl text-white input-focus-ring"
                                     />
-                                    <button type="submit" className="absolute right-2.5 top-2.5 bottom-2.5 bg-cyan-600 hover:bg-cyan-500 text-white px-8 rounded-2xl font-black shadow-lg active:scale-95 transition-all flex items-center">
-                                        観測開始 <Icon name="send" size={18} className="ml-2" />
+                                    <button type="submit" className="absolute right-2 top-2 bottom-2 bg-cyan-600 hover:bg-cyan-500 text-white px-4 md:px-8 rounded-[1rem] md:rounded-2xl font-black text-sm md:text-base shadow-lg active:scale-95 transition-all flex items-center">
+                                        観測<span className="hidden xs:inline">開始</span> <Icon name="send" size={16} className="ml-1 md:ml-2" />
                                     </button>
                                 </form>
 
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 w-full max-w-2xl">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full max-w-2xl">
                                     {suggestions.map((s, i) => (
-                                        <button key={i} onClick={() => setInput(s)} className="p-4 bg-slate-900/40 border border-white/5 rounded-2xl hover:border-cyan-500/30 transition-all text-xs md:text-sm text-slate-400 flex items-center justify-between group hover:bg-slate-800/60 font-medium truncate">
-                                            {s} <Icon name="chevron-right" size={16} className="text-slate-700 group-hover:text-cyan-500 flex-shrink-0" />
+                                        <button key={i} onClick={() => setInput(s)} className="p-4 bg-slate-900/40 border border-white/5 rounded-xl md:rounded-2xl hover:border-cyan-500/30 transition-all text-xs md:text-sm text-slate-400 flex items-center justify-between group hover:bg-slate-800/60 font-medium overflow-hidden">
+                                            <span className="truncate mr-2 text-left">{s}</span>
+                                            <Icon name="chevron-right" size={16} className="text-slate-700 group-hover:text-cyan-500 flex-shrink-0" />
                                         </button>
                                     ))}
                                 </div>
                             </div>
                         ) : loading ? (
-                            <div className="flex-grow flex flex-col items-center justify-center fade-in">
-                                <div className="relative mb-10">
-                                    <div className="w-32 h-32 border-[5px] border-cyan-500/10 border-t-cyan-500 rounded-full animate-spin"></div>
+                            <div className="flex-grow flex flex-col items-center justify-center fade-in py-12">
+                                <div className="relative mb-8 md:mb-10">
+                                    <div className="w-24 h-24 md:w-32 md:h-32 border-[4px] md:border-[5px] border-cyan-500/10 border-t-cyan-500 rounded-full animate-spin"></div>
                                     <div className="absolute inset-0 flex items-center justify-center">
-                                        <Icon name="cpu" size={48} className="text-cyan-500 animate-pulse" />
+                                        <Icon name="cpu" size={40} className="text-cyan-500 animate-pulse md:w-[48px] md:h-[48px]" />
                                     </div>
                                 </div>
-                                <h3 className="text-2xl font-black tracking-widest text-center text-white">パラレルワールドを観測中...</h3>
-                                <p className="text-slate-500 font-mono text-xs mt-4 tracking-[0.4em] uppercase text-center">Mapping Temporal Reality</p>
+                                <h3 className="text-xl md:text-2xl font-black tracking-widest text-center text-white">パラレルワールドを観測中...</h3>
+                                <p className="text-slate-500 font-mono text-[10px] md:text-xs mt-4 tracking-[0.4em] uppercase text-center">Mapping Temporal Reality</p>
                             </div>
                         ) : (
-                            <div className="fade-in space-y-20 pb-20">
-                                <div className="bg-gradient-to-br from-slate-900 to-[#0d1117] border border-white/10 rounded-[3rem] p-10 md:p-12 shadow-2xl relative overflow-hidden">
-                                   <div className="absolute top-0 right-0 p-12 opacity-[0.02] pointer-events-none scale-150">
+                            <div className="fade-in space-y-12 md:y-20 pb-20">
+                                {/* Summary Header */}
+                                <div className="bg-gradient-to-br from-slate-900 to-[#0d1117] border border-white/10 rounded-2xl md:rounded-[3rem] p-6 md:p-12 shadow-2xl relative overflow-hidden">
+                                   <div className="absolute top-0 right-0 p-8 md:p-12 opacity-[0.02] pointer-events-none scale-150">
                                        <Icon name="layout-grid" size={240} />
                                    </div>
                                    <div className="relative z-10 w-full">
-                                      <h3 className="text-xs font-bold text-slate-500 uppercase tracking-[0.3em] mb-4 flex items-center gap-3 italic">
-                                          <Icon name="info" size={16} className="text-cyan-600" /> 観測結果：西暦2026年
+                                      <h3 className="text-[10px] md:text-xs font-bold text-slate-500 uppercase tracking-[0.3em] mb-3 md:mb-4 flex items-center gap-2 md:gap-3 italic">
+                                          <Icon name="info" size={14} className="text-cyan-600 md:w-[16px] md:h-[16px]" /> 観測結果：西暦2026年
                                       </h3>
-                                      <p className="text-2xl md:text-3xl font-bold leading-[1.6] text-slate-100 text-pretty">
+                                      <p className="text-lg md:text-3xl font-bold leading-[1.6] text-slate-100 text-pretty">
                                         {worldData.worldSummary}
                                       </p>
                                    </div>
                                 </div>
 
+                                {/* Fields List */}
                                 <div>
-                                    <div className="flex items-end justify-between mb-8 px-4">
-                                       <h4 className="text-lg font-black text-white uppercase tracking-[0.4em] border-l-4 border-cyan-600 pl-4">分野別解析</h4>
-                                       <span className="text-slate-600 text-[10px] font-mono uppercase tracking-widest">Observables</span>
+                                    <div className="flex items-end justify-between mb-6 md:mb-8 px-2 md:px-4">
+                                       <h4 className="text-base md:text-lg font-black text-white uppercase tracking-[0.4em] border-l-4 border-cyan-600 pl-3 md:pl-4">分野別解析</h4>
+                                       <span className="text-slate-600 text-[8px] md:text-[10px] font-mono uppercase tracking-widest">Observables</span>
                                     </div>
-                                    <div className="space-y-4">
+                                    <div className="space-y-3 md:space-y-4">
                                       {categories.map((cat) => (
-                                        <div key={cat.id} className="glass rounded-3xl overflow-hidden group shadow-lg flex items-center min-h-[100px] transition-all hover:bg-slate-900/50">
-                                          <div className={`w-28 self-stretch bg-gradient-to-br ${cat.color} flex flex-col items-center justify-center border-r border-white/5 p-2`}>
-                                            <Icon name={cat.icon} size={32} className="text-white drop-shadow-xl mb-1" />
-                                            <span className="text-white text-xs font-black tracking-tighter text-center leading-none">{cat.label}</span>
+                                        <div key={cat.id} className="glass rounded-2xl md:rounded-3xl overflow-hidden group shadow-lg flex items-center min-h-[80px] md:min-h-[100px] transition-all hover:bg-slate-900/50">
+                                          <div className={`w-20 md:w-28 self-stretch bg-gradient-to-br ${cat.color} flex flex-col items-center justify-center border-r border-white/5 p-2`}>
+                                            <Icon name={cat.icon} size={24} className="text-white drop-shadow-xl mb-1 md:w-[32px] md:h-[32px]" />
+                                            <span className="text-white text-[10px] md:text-xs font-black tracking-tighter text-center leading-none">{cat.label}</span>
                                           </div>
-                                          <div className="p-6 flex-1">
-                                            <p className="text-lg text-slate-100 leading-snug font-medium text-pretty">
+                                          <div className="p-4 md:p-6 flex-1">
+                                            <p className="text-sm md:text-lg text-slate-100 leading-snug font-medium text-pretty">
                                               {worldData.categories?.[cat.id]?.content || "解析データなし"}
                                             </p>
                                           </div>
@@ -289,88 +291,63 @@
                                     </div>
                                 </div>
 
+                                {/* Topics */}
                                 <div>
-                                    <div className="flex items-end justify-between mb-10 px-4">
-                                       <h4 className="text-lg font-black text-white uppercase tracking-[0.4em] border-l-4 border-orange-600 pl-4">歴史的トピックス</h4>
-                                       <span className="text-slate-600 text-[10px] font-mono uppercase tracking-widest">Major Events</span>
+                                    <div className="flex items-end justify-between mb-8 md:mb-10 px-2 md:px-4">
+                                       <h4 className="text-base md:text-lg font-black text-white uppercase tracking-[0.4em] border-l-4 border-orange-600 pl-3 md:pl-4">歴史的トピックス</h4>
+                                       <span className="text-slate-600 text-[8px] md:text-[10px] font-mono uppercase tracking-widest">Major Events</span>
                                     </div>
-                                    <div className="space-y-12">
+                                    <div className="space-y-8 md:space-y-12">
                                       {worldData.topics?.map((topic, idx) => (
-                                        <div key={idx} className="glass rounded-[3rem] p-10 md:p-14 relative overflow-hidden shadow-2xl transition-all hover:bg-slate-900/60 group border border-white/10">
+                                        <div key={idx} className="glass rounded-2xl md:rounded-[3rem] p-6 md:p-14 relative overflow-hidden shadow-2xl transition-all hover:bg-slate-900/60 group border border-white/10">
                                           <div className="relative z-10">
-                                            <div className="inline-block bg-orange-600/10 text-orange-500 text-[10px] font-black px-4 py-1 rounded-full border border-orange-600/20 mb-6 uppercase tracking-widest">
+                                            <div className="inline-block bg-orange-600/10 text-orange-500 text-[8px] md:text-[10px] font-black px-3 md:px-4 py-1 rounded-full border border-orange-600/20 mb-4 md:mb-6 uppercase tracking-widest">
                                                 OBSERVATION #{idx + 1}
                                             </div>
-                                            <h5 className="text-2xl md:text-4xl font-black text-white mb-8 leading-tight tracking-normal group-hover:text-cyan-400 transition-colors">
+                                            <h5 className="text-xl md:text-4xl font-black text-white mb-4 md:mb-8 leading-tight tracking-normal group-hover:text-cyan-400 transition-colors">
                                                 {topic.title}
                                             </h5>
-                                            <p className="text-xl md:text-2xl text-slate-300 leading-relaxed font-medium text-pretty">
+                                            <p className="text-base md:text-2xl text-slate-300 leading-relaxed font-medium text-pretty">
                                                 {topic.detail}
                                             </p>
                                           </div>
                                           <div className="absolute -bottom-10 -right-10 text-white/[0.02] pointer-events-none group-hover:text-cyan-500/5 transition-colors">
-                                              <Icon name="lightbulb" size={320} />
+                                              <Icon name="lightbulb" size={240} className="md:w-[320px] md:h-[320px]" />
                                           </div>
                                         </div>
                                       ))}
                                     </div>
                                 </div>
                                 
-                                <div className="pt-10 flex justify-center">
+                                <div className="pt-6 md:pt-10 flex justify-center">
                                     <button 
                                         onClick={() => { setWorldData(null); setInput(""); setError(null); }}
-                                        className="px-12 py-8 border-4 border-dashed border-white/10 rounded-[3rem] text-slate-500 font-black text-xl uppercase tracking-[0.4em] hover:text-cyan-400 hover:border-cyan-500/50 hover:bg-cyan-500/5 transition-all flex items-center justify-center gap-5 group text-white"
+                                        className="w-full md:w-auto px-8 md:px-12 py-6 md:py-8 border-2 md:border-4 border-dashed border-white/10 rounded-2xl md:rounded-[3rem] text-slate-500 font-black text-base md:text-xl uppercase tracking-[0.4em] hover:text-cyan-400 hover:border-cyan-500/50 hover:bg-cyan-500/5 transition-all flex items-center justify-center gap-3 md:gap-5 group text-white"
                                     >
-                                        <Icon name="refresh-cw" size={28} className="group-hover:rotate-180 transition-transform duration-1000" /> 
+                                        <Icon name="refresh-cw" size={20} className="group-hover:rotate-180 transition-transform duration-1000 md:w-[28px] md:h-[28px]" /> 
                                         <span>新しい可能性を観測する</span>
                                     </button>
                                 </div>
                             </div>
                         )}
 
+                        {/* Error Section */}
                         {error && (
-                            <div className="fade-in mt-10 p-8 bg-red-500/5 border border-red-500/20 rounded-[2.5rem] text-red-400 flex flex-col gap-6 shadow-2xl max-w-2xl mx-auto">
-                                <div className="flex items-center gap-5">
-                                    <Icon name="alert-triangle" size={32} />
-                                    <div className="text-2xl font-black tracking-tight">観測エラー</div>
+                            <div className="fade-in mt-10 p-6 md:p-8 bg-red-500/5 border border-red-500/20 rounded-2xl md:rounded-[2.5rem] text-red-400 flex flex-col gap-4 md:gap-6 shadow-2xl max-w-2xl mx-auto">
+                                <div className="flex items-center gap-3 md:gap-5">
+                                    <Icon name="alert-triangle" size={24} className="md:w-[32px] md:h-[32px]" />
+                                    <div className="text-xl md:text-2xl font-black tracking-tight">観測エラー</div>
                                 </div>
-                                <div className="font-mono text-sm opacity-80 leading-relaxed bg-black/40 p-4 rounded-xl">{error}</div>
-                                <p className="text-xs text-slate-500">※ご自身のAPIキーを使用している場合、モデル「gemini-2.5-flash-preview」へのアクセス権があるか、または利用可能な地域かご確認ください。</p>
+                                <div className="font-mono text-xs md:text-sm opacity-80 leading-relaxed bg-black/40 p-3 md:p-4 rounded-xl">{error}</div>
                                 <div className="flex gap-4">
-                                    <button onClick={() => setShowSettings(true)} className="flex-1 bg-cyan-600/20 hover:bg-cyan-600/40 text-cyan-400 py-4 rounded-2xl transition-colors font-bold text-white">API設定を確認</button>
-                                    <button onClick={() => { setWorldData(null); setError(null); setLoading(false); }} className="flex-1 bg-red-500/20 hover:bg-red-500/40 text-red-400 py-4 rounded-2xl transition-colors font-bold text-white">やり直す</button>
+                                    <button onClick={() => { setWorldData(null); setError(null); setLoading(false); }} className="flex-1 bg-red-500/20 hover:bg-red-500/40 text-red-400 py-3 md:py-4 rounded-xl md:rounded-2xl transition-colors font-bold text-white text-center text-sm md:text-base">やり直す</button>
                                 </div>
                             </div>
                         )}
                     </main>
 
-                    {/* Settings Modal */}
-                    {showSettings && (
-                        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 backdrop-blur-md p-6">
-                            <div className="bg-slate-900 border border-slate-700 w-full max-w-md p-10 rounded-[3rem] shadow-2xl fade-in">
-                                <h3 className="text-3xl font-black mb-6 flex items-center gap-4 text-white">
-                                    <Icon name="settings" size={32} className="text-cyan-500" /> API設定
-                                </h3>
-                                <p className="text-slate-400 text-sm mb-8 leading-relaxed">
-                                    Google AI Studioから取得したAPIキーを入力してください。
-                                </p>
-                                <input 
-                                    type="password" 
-                                    value={tempKey} 
-                                    onChange={(e) => setTempKey(e.target.value)} 
-                                    placeholder="AIza..." 
-                                    className="w-full bg-black border border-slate-700 rounded-2xl px-6 py-4 mb-8 focus:outline-none focus:border-cyan-500 text-cyan-400 font-mono text-lg text-white" 
-                                />
-                                <div className="flex gap-4">
-                                    <button onClick={() => setShowSettings(false)} className="flex-1 py-4 rounded-2xl bg-slate-800 hover:bg-slate-700 transition-colors font-bold text-white">閉じる</button>
-                                    <button onClick={() => { localStorage.setItem('moshimo_api_key', tempKey); setStoredKey(tempKey); setShowSettings(false); }} className="flex-1 py-4 rounded-2xl bg-cyan-600 hover:bg-cyan-500 transition-colors font-bold text-white">保存する</button>
-                                </div>
-                            </div>
-                        </div>
-                    )}
-
-                    <footer className="py-8 text-center text-[9px] text-slate-700 font-mono uppercase tracking-[0.5em] flex-shrink-0">
-                        Observatory Box for Parallel Realities : Displacement Box v4.4
+                    <footer className="py-6 md:py-8 text-center text-[8px] md:text-[9px] text-slate-700 font-mono uppercase tracking-[0.5em] flex-shrink-0">
+                        Observatory Box for Parallel Realities : Displacement Box v4.5
                     </footer>
                 </div>
             );
